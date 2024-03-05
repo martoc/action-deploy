@@ -22,48 +22,47 @@ inputs:
 runs:
   using: 'composite'
   steps:
-  - name: Deploy to AWS
-    shell: bash
-    run: |
-      # Set environment variables
-      REGION="${{ inputs.region }}"
-      ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region $REGION)
-      ENVIRONMENT="${{ inputs.environment }}"
-      WORKLOAD_NAME="${{ inputs.workload-name }}"
-      WORKLOAD_TYPE="${{ inputs.workload-type }}"
-      CONTAINER_NAMESPACE="${{ inputs.container-registry-namespace }}"
+    - name: Deploy to AWS
+      shell: bash
+      run: |
+        # Set environment variables
+        REGION="${{ inputs.region }}"
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region $REGION)
+        ENVIRONMENT="${{ inputs.environment }}"
+        WORKLOAD_NAME="${{ inputs.workload-name }}"
+        WORKLOAD_TYPE="${{ inputs.workload-type }}"
+        CONTAINER_NAMESPACE="${{ inputs.container-registry-namespace }}"
 
-      echo "AWS Account ID: $ACCOUNT_ID"
-      echo "AWS Region: $REGION"
-      echo "Workload Environment: $ENVIRONMENT"
-      echo "Workload Name: $WORKLOAD_NAME"
-      echo "Workload Version: $TAG_VERSION"
+        echo "AWS Account ID: $ACCOUNT_ID"
+        echo "AWS Region: $REGION"
+        echo "Workload Environment: $ENVIRONMENT"
+        echo "Workload Name: $WORKLOAD_NAME"
+        echo "Workload Version: $TAG_VERSION"
 
-      # ECR Distribution
-      IMAGE_NAME="$CONTAINER_NAMESPACE/$WORKLOAD_NAME"
-      REPOSITORY_EXISTS=$(aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION 2>/dev/null || echo "")
-      if [ -z "$REPOSITORY_EXISTS" ]; then
-        echo "Repository does not exist. Creating $IMAGE_NAME in $REGION..."
-        aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION
-        echo "Repository for image $IMAGE_NAME created successfully."
-      else
-        echo "Repository for image $IMAGE_NAME already exists."
-      fi
-      docker login --username AWS --password $(aws ecr get-login-password --region $REGION) $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-      docker pull $IMAGE_NAME:$TAG_VERSION
-      IMAGE_ID=$(docker inspect -f '{{.Id}}' $IMAGE_NAME:$TAG_VERSION)
-      docker tag $IMAGE_ID $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$TAG_VERSION
-      docker tag $IMAGE_ID $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
-      docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$TAG_VERSION
-      docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
+        # ECR Distribution
+        IMAGE_NAME="$CONTAINER_NAMESPACE/$WORKLOAD_NAME"
+        REPOSITORY_EXISTS=$(aws ecr describe-repositories --repository-names $IMAGE_NAME --region $REGION 2>/dev/null || echo "")
+        if [ -z "$REPOSITORY_EXISTS" ]; then
+          echo "Repository does not exist. Creating $IMAGE_NAME in $REGION..."
+          aws ecr create-repository --repository-name $IMAGE_NAME --region $REGION
+          echo "Repository for image $IMAGE_NAME created successfully."
+        else
+          echo "Repository for image $IMAGE_NAME already exists."
+        fi
+        docker login --username AWS --password $(aws ecr get-login-password --region $REGION) $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+        docker pull $IMAGE_NAME:$TAG_VERSION
+        IMAGE_ID=$(docker inspect -f '{{.Id}}' $IMAGE_NAME:$TAG_VERSION)
+        docker tag $IMAGE_ID $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$TAG_VERSION
+        docker tag $IMAGE_ID $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
+        docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$TAG_VERSION
+        docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
 
-      # Cloudformation deployment
-      jq ".Parameters.Version = \"$TAG_VERSION\"" etc/cloud/aws/$ACCOUNT_ID/$REGION/$ENVIRONMENT/parameters.json > params-1.json
-      jq ".Parameters.Environment = \"$ENVIRONMENT\"" params-1.json > params.json
-      aws cloudformation deploy --stack-name "$WORKLOAD_NAME-$ENVIRONMENT" \
-        --template-file cloudformation-template/src/cloudformation/main.yaml \
-        --parameter-overrides file://params.json \
-        --region $REGION \
-        --capabilities CAPABILITY_IAM
-      aws cloudformation describe-stack-events --stack-name "$WORKLOAD_NAME-$ENVIRONMENT" --region $REGION
-
+        # Cloudformation deployment
+        jq ".Parameters.Version = \"$TAG_VERSION\"" etc/cloud/aws/$ACCOUNT_ID/$REGION/$ENVIRONMENT/parameters.json > params-1.json
+        jq ".Parameters.Environment = \"$ENVIRONMENT\"" params-1.json > params.json
+        aws cloudformation deploy --stack-name "$WORKLOAD_NAME-$ENVIRONMENT" \
+          --template-file cloudformation-template/src/cloudformation/main.yaml \
+          --parameter-overrides file://params.json \
+          --region $REGION \
+          --capabilities CAPABILITY_IAM
+        aws cloudformation describe-stack-events --stack-name "$WORKLOAD_NAME-$ENVIRONMENT" --region $REGION
