@@ -3,13 +3,36 @@ name: 'Deploys a workload into a cloud provider'
 description: |
   Deploys a workload into a cloud provider
 author: martoc
+inputs:
+  region:
+    description: 'The region where the workload will be deployed'
+    required: true
+  environment:
+    description: 'The environment where the workload will be deployed'
+    required: true
+  container-registry-namespace:
+    description: 'The namespace of the container registry'
+    required: false
+  workload-name:
+    description: 'The name of the workload to be deployed'
+    required: true
+  workload-type:
+    description: 'The type of the workload to be deployed'
+    required: false
 runs:
   using: 'composite'
   steps:
     - name: Deploy to AWS
       shell: bash
       run: |
+        # Set environment variables
+        REGION="${{ inputs.region }}"
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region $REGION)
+        ENVIRONMENT="${{ inputs.environment }}"
+        WORKLOAD_NAME="${{ inputs.workload-name }}"
+        WORKLOAD_TYPE="${{ inputs.workload-type }}"
+        CONTAINER_NAMESPACE="${{ inputs.container-registry-namespace }}"
+
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "AWS Region: $REGION"
         echo "Workload Environment: $ENVIRONMENT"
